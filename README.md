@@ -2,8 +2,14 @@
 
 An effort is underway at Anza to extract most of the transaction processing
 pipeline out of the validator and into what will be known as the Solana Virtual
-Machine (SVM). Although the official specification of this standalone SVM is
-still in development, it's important that we get this right.
+Machine (SVM).
+
+<https://github.com/solana-labs/solana/issues/34196>
+
+<https://github.com/anza-xyz/agave/issues/389>
+
+Although the official specification of this standalone SVM is still in
+development, it's important that we get this right.
 
 An isolated SVM would be a transaction processing pipeline that can operate
 independent of any validator. Validators would then run some implementation of
@@ -23,9 +29,9 @@ Solutions like these can make Solana more performant and more reliable, as well
 as expand the landscape of possible products and services that can be built
 within its ecosystem.
 
-But let's push the envelope. Imagine if we engineered this new isolated SVM to
-be an assembly of entirely independent modules. Any SVM implementation could
-simply drive these modules through well-defined interfaces.
+👉 But let's push the envelope. Imagine if we engineered this new isolated SVM
+to be an assembly of **entirely independent modules**. Any SVM implementation
+could simply drive these modules through well-defined interfaces.
 
 This further disintegrates the barriers to SVM-compatible projects by requiring
 significantly less overhead to architect custom solutions. Teams could simply
@@ -66,21 +72,21 @@ The `solana-runtime` specification (grossly over-simplified here) details a
 runtime that makes use of an SVM. However, notice that this is all done with
 **interfaces**.
 
-https://github.com/buffalojoec/modular-svm/blob/main/solana/runtime/src/specification.rs
+https://github.com/buffalojoec/modular-svm/blob/d52d0d34a5ce9e8fcda1153ff45934ab9721a310/solana/runtime/src/specification.rs#L10-L33
 
 Meanwhile, the Agave runtime is now an _implementation_ (`agave-runtime`), and
 it simply implements the `solana-runtime` interface by also providing an SVM
 implementation (`agave-svm`) to be compliant.
 
-(https://github.com/buffalojoec/modular-svm/blob/main/agave/runtime/src/lib.rs)
+https://github.com/buffalojoec/modular-svm/blob/d52d0d34a5ce9e8fcda1153ff45934ab9721a310/agave/runtime/src/lib.rs#L19-L52
 
 The beautiful thing here is that another SVM could easily be plugged into
 Agave's runtime implementation. Anyone could configure an Agave node, then write
-an adapter for some other SVM implementation and plug it in.
+an adapter for some other SVM implementation and plug it in right here 👆.
 
 Note also the decoupling and modularization of the type crates, some of which
 are specification-wide (`solana-compute-budget`) and some of which are
 implementation-specific (`agave-program-cache`).
 
-> Note: Although metrics are not demonstrated here (yet), the idea is that they
-> would reside in one's implementation, and be vended back up to the callers.
+Although metrics are not demonstrated here (yet), the idea is that they would
+reside in one's implementation, and be vended back up to the callers.
