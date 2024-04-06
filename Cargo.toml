@@ -1,9 +1,11 @@
 [workspace]
 members = [
+    "agave/runtime",
     "agave/program-cache",
     "agave/svm",
     "agave/sysvar-cache",
     "solana/compute-budget",
+    "solana/runtime",
     "solana/svm",
 ]
 

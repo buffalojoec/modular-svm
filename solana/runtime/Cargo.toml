@@ -1,6 +1,6 @@
 [package]
-name = "solana-svm"
-description = "Solana SVM Specification"
+name = "solana-runtime"
+description = "Solana Validator Runtime Specification"
 version = { workspace = true }
 authors = { workspace = true }
 repository = { workspace = true }
@@ -10,6 +10,7 @@ edition = { workspace = true }
 
 [dependencies]
 solana-sdk = { workspace = true }
+solana-svm = { path = "../svm" }
 
 [features]
 test-harness = []

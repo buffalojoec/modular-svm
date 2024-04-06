@@ -1,7 +1,6 @@
 [package]
 name = "solana-compute-budget"
 description = "Solana Compute Budget"
-documentation = "https://docs.rs/solana-svm"
 version = { workspace = true }
 authors = { workspace = true }
 repository = { workspace = true }

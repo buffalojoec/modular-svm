@@ -220,7 +220,7 @@ fn load_accounts<CB: TransactionProcessingCallback>(
     _loaded_programs: &LoadedProgramsForTxBatch,
 ) -> Vec<TransactionLoadResult> {
     /*
-     * Function simplified for brevity.
+     * MOCK.
      */
     vec![]
 }

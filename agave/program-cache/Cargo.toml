@@ -1,7 +1,6 @@
 [package]
 name = "agave-program-cache"
 description = "Agave Program Cache"
-documentation = "https://docs.rs/agave-svm"
 version = { workspace = true }
 authors = { workspace = true }
 repository = { workspace = true }

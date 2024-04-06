@@ -1,18 +1,18 @@
 # The Case for a Modular SVM
 
-An effort is underway at Anza to extract most of the transaction processing 
+An effort is underway at Anza to extract most of the transaction processing
 pipeline out of the validator and into what will be known as the Solana Virtual
 Machine (SVM). Although the official specification of this standalone SVM is
 still in development, it's important that we get this right.
 
-An isolated SVM would be a transaction processing pipeline that can operate 
-independent of any validator. Validators would then run some implementation of 
-an SVM, and brand-new services could be built on top of custom SVM-compatible 
+An isolated SVM would be a transaction processing pipeline that can operate
+independent of any validator. Validators would then run some implementation of
+an SVM, and brand-new services could be built on top of custom SVM-compatible
 engines.
 
 ## Why is a Modular SVM Important?
 
-Having a decoupled SVM with its own well-defined interface unlocks the ability 
+Having a decoupled SVM with its own well-defined interface unlocks the ability
 for teams to build custom SVM implementations, including:
 
 - SVM rollups
@@ -20,35 +20,67 @@ for teams to build custom SVM implementations, including:
 - SVM-based off-chain services
 
 Solutions like these can make Solana more performant and more reliable, as well
-as expand the landscape of possible products and services that can be built 
+as expand the landscape of possible products and services that can be built
 within its ecosystem.
 
-But let's push the envelope. Imagine if we engineered this new isolated SVM to 
+But let's push the envelope. Imagine if we engineered this new isolated SVM to
 be an assembly of entirely independent modules. Any SVM implementation could
 simply drive these modules through well-defined interfaces.
 
 This further disintegrates the barriers to SVM-compatible projects by requiring
-significantly less overhead to architect custom solutions. Teams could simply 
+significantly less overhead to architect custom solutions. Teams could simply
 implement the modules they care about while using already established
 implementations for the others (such as those from Agave or Firedancer).
 
 ## How Do We Get There?
 
 We must take this opportunity to break away from library patterns that have
-plagued both core and protocol developers for a long time. Some of these issues 
+plagued both core and protocol developers for a long time. Some of these issues
 include:
 
 - High-level libraries depending on low-level libraries for simple things such
   as types.
 - Tightly-coupled libraries using each other's objects instead of interfaces
   and adapters.
-- Metrics-capturing strands wired from the highest-level packages all the way to 
+- Metrics-capturing strands wired from the highest-level packages all the way to
   the lowest-level.
 
-The modularity goals outlined in the previous section can be obtained by 
+The modularity goals outlined in the previous section can be obtained by
 remedying these issues. Some suggested solutions are as follows:
 
 - Leverage lean, low-level type packages.
 - Differentiate between interfaces and implementations.
 - Connect implementations using interface adapters.
 - Bake metrics into the specification.
+
+## About This Repository
+
+This repository seeks to demonstrate the concepts above by offering two groups
+of crates:
+
+- `solana`: The specification-based crates for types and interfaces, to be used
+  by implementations.
+- `agave`: Anza's Agave client implementations of the `solana` specifications.
+
+The `solana-runtime` specification (grossly over-simplified here) details a
+runtime that makes use of an SVM. However, notice that this is all done with
+**interfaces**.
+
+https://github.com/buffalojoec/modular-svm/blob/main/solana/runtime/src/specification.rs
+
+Meanwhile, the Agave runtime is now an _implementation_ (`agave-runtime`), and
+it simply implements the `solana-runtime` interface by also providing an SVM
+implementation (`agave-svm`) to be compliant.
+
+(https://github.com/buffalojoec/modular-svm/blob/main/agave/runtime/src/lib.rs)
+
+The beautiful thing here is that another SVM could easily be plugged into
+Agave's runtime implementation. Anyone could configure an Agave node, then write
+an adapter for some other SVM implementation and plug it in.
+
+Note also the decoupling and modularization of the type crates, some of which
+are specification-wide (`solana-compute-budget`) and some of which are
+implementation-specific (`agave-program-cache`).
+
+> Note: Although metrics are not demonstrated here (yet), the idea is that they
+> would reside in one's implementation, and be vended back up to the callers.

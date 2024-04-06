@@ -1,6 +1,6 @@
 [package]
-name = "agave-svm"
-description = "Agave Solana SVM Implementation"
+name = "agave-runtime"
+description = "Agave Validator Runtime Implementation"
 version = { workspace = true }
 authors = { workspace = true }
 repository = { workspace = true }
@@ -10,7 +10,7 @@ edition = { workspace = true }
 
 [dependencies]
 agave-program-cache = { path = "../program-cache" }
-agave-sysvar-cache = { path = "../sysvar-cache" }
+agave-svm = { path = "../svm" }
+solana-runtime = { path = "../../solana/runtime" }
 solana-sdk = { workspace = true }
-solana-compute-budget = { path = "../../solana/compute-budget" }
 solana-svm = { path = "../../solana/svm" }

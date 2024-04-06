@@ -26,8 +26,4 @@ pub trait TransactionProcessingCallback {
     ) -> transaction::Result<()> {
         Ok(())
     }
-
-    // fn get_program_match_criteria(&self, _program: &Pubkey) -> LoadedProgramMatchCriteria {
-    //     LoadedProgramMatchCriteria::NoCriteria
-    // }
 }
