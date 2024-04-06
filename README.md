@@ -72,19 +72,19 @@ The `solana-runtime` specification (grossly over-simplified here) details a
 runtime that makes use of an SVM. However, notice that this is all done with
 **interfaces**.
 
-https://github.com/buffalojoec/modular-svm/blob/d52d0d34a5ce9e8fcda1153ff45934ab9721a310/solana/runtime/src/specification.rs#L10-L33
+https://github.com/buffalojoec/modular-svm/blob/ab1396d067987f52dca325028dbd49a94b50b317/solana/runtime/src/specification.rs#L10-L33
 
 Meanwhile, the Agave runtime is now an _implementation_ (`agave-runtime`), and
 it simply implements the `solana-runtime` interface, but **without specifying
 a specific SVM implementation**.
 
-https://github.com/buffalojoec/modular-svm/blob/d52d0d34a5ce9e8fcda1153ff45934ab9721a310/agave/runtime/src/lib.rs#L19-L52
+https://github.com/buffalojoec/modular-svm/blob/ab1396d067987f52dca325028dbd49a94b50b317/agave/runtime/src/lib.rs#L11-L45
 
 The beautiful thing here is that any SVM could easily be plugged into Agave's
 runtime implementation. Anyone could configure an Agave node, then write an
 adapter for some other SVM implementation and plug it in right here.
 
-https://github.com/buffalojoec/modular-svm/blob/d52d0d34a5ce9e8fcda1153ff45934ab9721a310/agave/validator/src/lib.rs#L19-L52
+https://github.com/buffalojoec/modular-svm/blob/ab1396d067987f52dca325028dbd49a94b50b317/agave/validator/src/lib.rs#L11-L21
 
 🔑 🔑 A huge advantage with this arrangement is the fact that consensus-breaking
 changes would reside in the specification-level, guarded by SIMDs, while
