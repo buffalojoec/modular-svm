@@ -1,5 +1,5 @@
 [package]
-name = "solana-program-runtime"
+name = "bin-program-runtime"
 description = "Solana program runtime"
 documentation = "https://docs.rs/solana-program-runtime"
 version = { workspace = true }

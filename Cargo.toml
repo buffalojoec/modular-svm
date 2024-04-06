@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "program-runtime",
-    "svm",
+    "bin/program-runtime",
+    "bin/svm",
 ]
 
 exclude = ["svm/tests/example-programs"]
