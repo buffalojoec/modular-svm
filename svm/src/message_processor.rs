@@ -1,5 +1,4 @@
 use {
-    serde::{Deserialize, Serialize},
     solana_measure::measure::Measure,
     solana_program_runtime::{
         invoke_context::InvokeContext,
@@ -11,7 +10,6 @@ use {
     },
 };
 
-#[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct MessageProcessor {}
 
 impl MessageProcessor {

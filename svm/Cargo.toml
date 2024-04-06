@@ -13,10 +13,7 @@ edition = { workspace = true }
 itertools = { workspace = true }
 log = { workspace = true }
 percentage = { workspace = true }
-serde = { workspace = true, features = ["derive", "rc"] }
 solana-bpf-loader-program = { workspace = true }
-solana-frozen-abi = { workspace = true }
-solana-frozen-abi-macro = { workspace = true }
 solana-loader-v4-program = { workspace = true }
 solana-measure = { workspace = true }
 solana-metrics = { workspace = true }
@@ -31,5 +28,3 @@ name = "solana_svm"
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
-[build-dependencies]
-rustc_version = { workspace = true }

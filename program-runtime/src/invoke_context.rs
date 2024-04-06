@@ -158,13 +158,14 @@ impl<'a> InvokeContext<'a> {
 
     pub fn get_environments_for_slot(
         &self,
-        effective_slot: Slot,
+        _effective_slot: Slot,
     ) -> Result<&ProgramRuntimeEnvironments, InstructionError> {
-        let epoch_schedule = self.sysvar_cache.get_epoch_schedule()?;
-        let epoch = epoch_schedule.get_epoch(effective_slot);
+        /*
+         * Function simplified for brevity.
+         */
         Ok(self
             .programs_loaded_for_tx_batch
-            .get_environments_for_epoch(epoch))
+            .get_environments_for_epoch(0))
     }
 
     /// Push a stack frame onto the invocation stack

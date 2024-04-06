@@ -3,9 +3,7 @@ use {
         invoke_context::{BuiltinFunctionWithContext, InvokeContext},
         timings::ExecuteDetailsTimings,
     },
-    log::{debug, error, log_enabled, trace},
-    percentage::PercentageInteger,
-    rand::{thread_rng, Rng},
+    log::{debug, log_enabled, trace},
     solana_measure::measure::Measure,
     solana_rbpf::{
         elf::Executable,
@@ -538,57 +536,20 @@ impl LoadingTaskWaiter {
     }
 }
 
-/// Contains all the program versions at a specific address.
 #[derive(Debug, Default)]
-struct SecondLevel {
-    /// List of all versions (across all forks) of a program sorted by the slot in which they were modified
-    slot_versions: Vec<Arc<LoadedProgram>>,
-    /// `Some` if there is currently a cooperative loading task for this program address
-    ///
-    /// It is possible that multiple TX batches from different slots need different versions of a program.
-    /// However, that can only be figured out once a program is loaded and its deployment slot is known.
-    cooperative_loading_lock: Option<(Slot, std::thread::ThreadId)>,
+pub struct SecondLevel {
+    pub slot_versions: Vec<Arc<LoadedProgram>>,
+    pub cooperative_loading_lock: Option<(Slot, std::thread::ThreadId)>,
 }
-
-/// This structure is the global cache of loaded, verified and compiled programs.
-///
-/// It ...
-/// - is validator global and fork graph aware, so it can optimize the commonalities across banks.
-/// - handles the visibility rules of un/re/deployments.
-/// - stores the usage statistics and verification status of each program.
-/// - is elastic and uses a probabilistic eviction stragety based on the usage statistics.
-/// - also keeps the compiled executables around, but only for the most used programs.
-/// - supports various kinds of tombstones to avoid loading programs which can not be loaded.
-/// - cleans up entries on orphan branches when the block store is rerooted.
-/// - supports the recompilation phase before feature activations which can change cached programs.
-/// - manages the environments of the programs and upcoming environments for the next epoch.
-/// - allows for cooperative loading of TX batches which hit the same missing programs simultaneously.
-/// - enforces that all programs used in a batch are eagerly loaded ahead of execution.
-/// - is not persisted to disk or a snapshot, so it needs to cold start and warm up first.
 pub struct ProgramCache<FG: ForkGraph> {
-    /// A two level index:
-    ///
-    /// The first level is for the address at which programs are deployed and the second level for the slot (and thus also fork).
     entries: HashMap<Pubkey, SecondLevel>,
-    /// The slot of the last rerooting
     pub latest_root_slot: Slot,
-    /// The epoch of the last rerooting
     pub latest_root_epoch: Epoch,
-    /// Environments of the current epoch
     pub environments: ProgramRuntimeEnvironments,
-    /// Anticipated replacement for `environments` at the next epoch
-    ///
-    /// This is `None` during most of an epoch, and only `Some` around the boundaries (at the end and beginning of an epoch).
-    /// More precisely, it starts with the recompilation phase a few hundred slots before the epoch boundary,
-    /// and it ends with the first rerooting after the epoch boundary.
     pub upcoming_environments: Option<ProgramRuntimeEnvironments>,
-    /// List of loaded programs which should be recompiled before the next epoch (but don't have to).
     pub programs_to_recompile: Vec<(Pubkey, Arc<LoadedProgram>)>,
-    /// Statistics counters
     pub stats: Stats,
-    /// Reference to the block store
     pub fork_graph: Option<Arc<RwLock<FG>>>,
-    /// Coordinates TX batches waiting for others to complete their task during cooperative loading
     pub loading_task_waiter: Arc<LoadingTaskWaiter>,
 }
 
@@ -603,27 +564,12 @@ impl<FG: ForkGraph> Debug for ProgramCache<FG> {
     }
 }
 
-/// Local view into [ProgramCache] which was extracted for a specific TX batch.
-///
-/// This isolation enables the global [ProgramCache] to continue to evolve (e.g. evictions),
-/// while the TX batch is guaranteed it will continue to find all the programs it requires.
-/// For program management instructions this also buffers them before they are merged back into the global [ProgramCache].
 #[derive(Clone, Debug, Default)]
 pub struct LoadedProgramsForTxBatch {
-    /// Pubkey is the address of a program.
-    /// LoadedProgram is the corresponding program entry valid for the slot in which a transaction is being executed.
     entries: HashMap<Pubkey, Arc<LoadedProgram>>,
     slot: Slot,
     pub environments: ProgramRuntimeEnvironments,
-    /// Anticipated replacement for `environments` at the next epoch.
-    ///
-    /// This is `None` during most of an epoch, and only `Some` around the boundaries (at the end and beginning of an epoch).
-    /// More precisely, it starts with the recompilation phase a few hundred slots before the epoch boundary,
-    /// and it ends with the first rerooting after the epoch boundary.
-    /// Needed when a program is deployed at the last slot of an epoch, becomes effective in the next epoch.
-    /// So needs to be compiled with the environment for the next epoch.
     pub upcoming_environments: Option<ProgramRuntimeEnvironments>,
-    /// The epoch of the last rerooting
     pub latest_root_epoch: Epoch,
     pub hit_max_limit: bool,
 }
@@ -645,21 +591,6 @@ impl LoadedProgramsForTxBatch {
         }
     }
 
-    pub fn new_from_cache<FG: ForkGraph>(
-        slot: Slot,
-        epoch: Epoch,
-        cache: &ProgramCache<FG>,
-    ) -> Self {
-        Self {
-            entries: HashMap::new(),
-            slot,
-            environments: cache.get_environments_for_epoch(epoch).clone(),
-            upcoming_environments: cache.get_upcoming_environments_for_epoch(epoch),
-            latest_root_epoch: cache.latest_root_epoch,
-            hit_max_limit: false,
-        }
-    }
-
     /// Returns the current environments depending on the given epoch
     pub fn get_environments_for_epoch(&self, epoch: Epoch) -> &ProgramRuntimeEnvironments {
         if epoch != self.latest_root_epoch {
@@ -670,11 +601,6 @@ impl LoadedProgramsForTxBatch {
         &self.environments
     }
 
-    /// Refill the cache with a single entry. It's typically called during transaction loading, and
-    /// transaction processing (for program management instructions).
-    /// It replaces the existing entry (if any) with the provided entry. The return value contains
-    /// `true` if an entry existed.
-    /// The function also returns the newly inserted value.
     pub fn replenish(
         &mut self,
         key: Pubkey,
@@ -735,316 +661,35 @@ impl<FG: ForkGraph> ProgramCache<FG> {
         }
     }
 
-    pub fn set_fork_graph(&mut self, fork_graph: Arc<RwLock<FG>>) {
-        self.fork_graph = Some(fork_graph);
-    }
-
-    /// Returns the current environments depending on the given epoch
-    pub fn get_environments_for_epoch(&self, epoch: Epoch) -> &ProgramRuntimeEnvironments {
-        if epoch != self.latest_root_epoch {
-            if let Some(upcoming_environments) = self.upcoming_environments.as_ref() {
-                return upcoming_environments;
-            }
-        }
-        &self.environments
-    }
-
-    /// Returns the upcoming environments depending on the given epoch
-    pub fn get_upcoming_environments_for_epoch(
-        &self,
-        epoch: Epoch,
-    ) -> Option<ProgramRuntimeEnvironments> {
-        if epoch == self.latest_root_epoch {
-            return self.upcoming_environments.clone();
-        }
-        None
-    }
-
-    /// Insert a single entry. It's typically called during transaction loading,
-    /// when the cache doesn't contain the entry corresponding to program `key`.
-    pub fn assign_program(&mut self, key: Pubkey, entry: Arc<LoadedProgram>) -> bool {
-        debug_assert!(!matches!(
-            &entry.program,
-            LoadedProgramType::DelayVisibility
-        ));
-        let slot_versions = &mut self.entries.entry(key).or_default().slot_versions;
-        match slot_versions.binary_search_by(|at| {
-            at.effective_slot
-                .cmp(&entry.effective_slot)
-                .then(at.deployment_slot.cmp(&entry.deployment_slot))
-        }) {
-            Ok(index) => {
-                let existing = slot_versions.get_mut(index).unwrap();
-                match (&existing.program, &entry.program) {
-                    // Add test for Closed => Loaded transition in same slot
-                    (LoadedProgramType::Builtin(_), LoadedProgramType::Builtin(_))
-                    | (LoadedProgramType::Closed, LoadedProgramType::LegacyV0(_))
-                    | (LoadedProgramType::Closed, LoadedProgramType::LegacyV1(_))
-                    | (LoadedProgramType::Closed, LoadedProgramType::Typed(_))
-                    | (LoadedProgramType::Unloaded(_), LoadedProgramType::LegacyV0(_))
-                    | (LoadedProgramType::Unloaded(_), LoadedProgramType::LegacyV1(_))
-                    | (LoadedProgramType::Unloaded(_), LoadedProgramType::Typed(_)) => {}
-                    #[cfg(test)]
-                    (LoadedProgramType::Closed, LoadedProgramType::TestLoaded(_))
-                    | (LoadedProgramType::Unloaded(_), LoadedProgramType::TestLoaded(_)) => {}
-                    _ => {
-                        // Something is wrong, I can feel it ...
-                        error!("ProgramCache::assign_program() failed key={:?} existing={:?} entry={:?}", key, slot_versions, entry);
-                        debug_assert!(false, "Unexpected replacement of an entry");
-                        self.stats.replacements.fetch_add(1, Ordering::Relaxed);
-                        return true;
-                    }
-                }
-                // Copy over the usage counter to the new entry
-                entry.tx_usage_counter.fetch_add(
-                    existing.tx_usage_counter.load(Ordering::Relaxed),
-                    Ordering::Relaxed,
-                );
-                entry.ix_usage_counter.fetch_add(
-                    existing.ix_usage_counter.load(Ordering::Relaxed),
-                    Ordering::Relaxed,
-                );
-                *existing = Arc::clone(&entry);
-                self.stats.reloads.fetch_add(1, Ordering::Relaxed);
-            }
-            Err(index) => {
-                self.stats.insertions.fetch_add(1, Ordering::Relaxed);
-                slot_versions.insert(index, Arc::clone(&entry));
-            }
-        }
+    pub fn assign_program(&mut self, _key: Pubkey, _entry: Arc<LoadedProgram>) -> bool {
+        /*
+         * Function simplified for brevity.
+         */
         false
     }
 
-    pub fn prune_by_deployment_slot(&mut self, slot: Slot) {
-        for second_level in self.entries.values_mut() {
-            second_level
-                .slot_versions
-                .retain(|entry| entry.deployment_slot != slot);
-        }
-        self.remove_programs_with_no_entries();
-    }
-
-    /// Before rerooting the blockstore this removes all superfluous entries
-    pub fn prune(&mut self, new_root_slot: Slot, new_root_epoch: Epoch) {
-        let Some(fork_graph) = self.fork_graph.clone() else {
-            error!("Program cache doesn't have fork graph.");
-            return;
-        };
-        let Ok(fork_graph) = fork_graph.read() else {
-            error!("Failed to lock fork graph for reading.");
-            return;
-        };
-        let mut recompilation_phase_ends = false;
-        if self.latest_root_epoch != new_root_epoch {
-            self.latest_root_epoch = new_root_epoch;
-            if let Some(upcoming_environments) = self.upcoming_environments.take() {
-                recompilation_phase_ends = true;
-                self.environments = upcoming_environments;
-                self.programs_to_recompile.clear();
-            }
-        }
-        for second_level in self.entries.values_mut() {
-            // Remove entries un/re/deployed on orphan forks
-            let mut first_ancestor_found = false;
-            let mut first_ancestor_env = None;
-            second_level.slot_versions = second_level
-                .slot_versions
-                .iter()
-                .rev()
-                .filter(|entry| {
-                    let relation = fork_graph.relationship(entry.deployment_slot, new_root_slot);
-                    if entry.deployment_slot >= new_root_slot {
-                        matches!(relation, BlockRelation::Equal | BlockRelation::Descendant)
-                    } else if matches!(relation, BlockRelation::Ancestor)
-                        || entry.deployment_slot <= self.latest_root_slot
-                    {
-                        if !first_ancestor_found {
-                            first_ancestor_found = true;
-                            first_ancestor_env = entry.program.get_environment();
-                            return true;
-                        }
-                        // Do not prune the entry if the runtime environment of the entry is different
-                        // than the entry that was previously found (stored in first_ancestor_env).
-                        // Different environment indicates that this entry might belong to an older
-                        // epoch that had a different environment (e.g. different feature set).
-                        // Once the root moves to the new/current epoch, the entry will get pruned.
-                        // But, until then the entry might still be getting used by an older slot.
-                        if let Some(entry_env) = entry.program.get_environment() {
-                            if let Some(env) = first_ancestor_env {
-                                if !Arc::ptr_eq(entry_env, env) {
-                                    return true;
-                                }
-                            }
-                        }
-                        self.stats.prunes_orphan.fetch_add(1, Ordering::Relaxed);
-                        false
-                    } else {
-                        self.stats.prunes_orphan.fetch_add(1, Ordering::Relaxed);
-                        false
-                    }
-                })
-                .filter(|entry| {
-                    // Remove outdated environment of previous feature set
-                    if recompilation_phase_ends
-                        && !Self::matches_environment(entry, &self.environments)
-                    {
-                        self.stats
-                            .prunes_environment
-                            .fetch_add(1, Ordering::Relaxed);
-                        return false;
-                    }
-                    true
-                })
-                .cloned()
-                .collect();
-            second_level.slot_versions.reverse();
-        }
-        self.remove_programs_with_no_entries();
-        debug_assert!(self.latest_root_slot <= new_root_slot);
-        self.latest_root_slot = new_root_slot;
-    }
-
-    fn matches_environment(
-        entry: &Arc<LoadedProgram>,
-        environments: &ProgramRuntimeEnvironments,
-    ) -> bool {
-        let Some(environment) = entry.program.get_environment() else {
-            return true;
-        };
-        Arc::ptr_eq(environment, &environments.program_runtime_v1)
-            || Arc::ptr_eq(environment, &environments.program_runtime_v2)
-    }
-
-    fn matches_loaded_program_criteria(
-        program: &Arc<LoadedProgram>,
-        criteria: &LoadedProgramMatchCriteria,
-    ) -> bool {
-        match criteria {
-            LoadedProgramMatchCriteria::DeployedOnOrAfterSlot(slot) => {
-                program.deployment_slot >= *slot
-            }
-            LoadedProgramMatchCriteria::Tombstone => program.is_tombstone(),
-            LoadedProgramMatchCriteria::NoCriteria => true,
-        }
-    }
-
-    /// Extracts a subset of the programs relevant to a transaction batch
-    /// and returns which program accounts the accounts DB needs to load.
     pub fn extract(
         &mut self,
-        search_for: &mut Vec<(Pubkey, (LoadedProgramMatchCriteria, u64))>,
-        loaded_programs_for_tx_batch: &mut LoadedProgramsForTxBatch,
-        is_first_round: bool,
+        _search_for: &mut Vec<(Pubkey, (LoadedProgramMatchCriteria, u64))>,
+        _loaded_programs_for_tx_batch: &mut LoadedProgramsForTxBatch,
+        _is_first_round: bool,
     ) -> Option<(Pubkey, u64)> {
-        debug_assert!(self.fork_graph.is_some());
-        let locked_fork_graph = self.fork_graph.as_ref().unwrap().read().unwrap();
-        let mut cooperative_loading_task = None;
-        search_for.retain(|(key, (match_criteria, usage_count))| {
-            if let Some(second_level) = self.entries.get_mut(key) {
-                for entry in second_level.slot_versions.iter().rev() {
-                    if entry.deployment_slot <= self.latest_root_slot
-                        || matches!(
-                            locked_fork_graph.relationship(
-                                entry.deployment_slot,
-                                loaded_programs_for_tx_batch.slot
-                            ),
-                            BlockRelation::Equal | BlockRelation::Ancestor
-                        )
-                    {
-                        let entry_to_return = if loaded_programs_for_tx_batch.slot
-                            >= entry.effective_slot
-                            && Self::matches_environment(
-                                entry,
-                                &loaded_programs_for_tx_batch.environments,
-                            ) {
-                            if !Self::matches_loaded_program_criteria(entry, match_criteria) {
-                                break;
-                            }
-                            if let LoadedProgramType::Unloaded(_environment) = &entry.program {
-                                break;
-                            }
-                            entry.clone()
-                        } else if entry.is_implicit_delay_visibility_tombstone(
-                            loaded_programs_for_tx_batch.slot,
-                        ) {
-                            // Found a program entry on the current fork, but it's not effective
-                            // yet. It indicates that the program has delayed visibility. Return
-                            // the tombstone to reflect that.
-                            Arc::new(LoadedProgram::new_tombstone(
-                                entry.deployment_slot,
-                                LoadedProgramType::DelayVisibility,
-                            ))
-                        } else {
-                            continue;
-                        };
-                        entry_to_return.update_access_slot(loaded_programs_for_tx_batch.slot);
-                        entry_to_return
-                            .tx_usage_counter
-                            .fetch_add(*usage_count, Ordering::Relaxed);
-                        loaded_programs_for_tx_batch
-                            .entries
-                            .insert(*key, entry_to_return);
-                        return false;
-                    }
-                }
-            }
-            if cooperative_loading_task.is_none() {
-                // We have not selected a task so far
-                let second_level = self.entries.entry(*key).or_default();
-                if second_level.cooperative_loading_lock.is_none() {
-                    // Select this missing entry which is not selected by any other TX batch yet
-                    cooperative_loading_task = Some((*key, *usage_count));
-                    second_level.cooperative_loading_lock = Some((
-                        loaded_programs_for_tx_batch.slot,
-                        std::thread::current().id(),
-                    ));
-                }
-            }
-            true
-        });
-        drop(locked_fork_graph);
-        if is_first_round {
-            self.stats
-                .misses
-                .fetch_add(search_for.len() as u64, Ordering::Relaxed);
-            self.stats.hits.fetch_add(
-                loaded_programs_for_tx_batch.entries.len() as u64,
-                Ordering::Relaxed,
-            );
-        }
-        cooperative_loading_task
+        /*
+         * Function simplified for brevity.
+         */
+        None
     }
 
-    /// Called by Bank::replenish_program_cache() for each program that is done loading.
     pub fn finish_cooperative_loading_task(
         &mut self,
-        slot: Slot,
-        key: Pubkey,
-        loaded_program: Arc<LoadedProgram>,
+        _slot: Slot,
+        _key: Pubkey,
+        _loaded_program: Arc<LoadedProgram>,
     ) -> bool {
-        let second_level = self.entries.entry(key).or_default();
-        debug_assert_eq!(
-            second_level.cooperative_loading_lock,
-            Some((slot, std::thread::current().id()))
-        );
-        second_level.cooperative_loading_lock = None;
-        // Check that it will be visible to our own fork once inserted
-        if loaded_program.deployment_slot > self.latest_root_slot
-            && !matches!(
-                self.fork_graph
-                    .as_ref()
-                    .unwrap()
-                    .read()
-                    .unwrap()
-                    .relationship(loaded_program.deployment_slot, slot),
-                BlockRelation::Equal | BlockRelation::Ancestor
-            )
-        {
-            self.stats.lost_insertions.fetch_add(1, Ordering::Relaxed);
-        }
-        let was_occupied = self.assign_program(key, loaded_program);
-        self.loading_task_waiter.notify();
-        was_occupied
+        /*
+         * Function simplified for brevity.
+         */
+        false
     }
 
     pub fn merge(&mut self, tx_batch_cache: &LoadedProgramsForTxBatch) {
@@ -1053,157 +698,9 @@ impl<FG: ForkGraph> ProgramCache<FG> {
         })
     }
 
-    /// Returns the list of loaded programs which are verified and compiled.
-    pub fn get_flattened_entries(
-        &self,
-        include_program_runtime_v1: bool,
-        include_program_runtime_v2: bool,
-    ) -> Vec<(Pubkey, Arc<LoadedProgram>)> {
-        self.entries
-            .iter()
-            .flat_map(|(id, second_level)| {
-                second_level
-                    .slot_versions
-                    .iter()
-                    .filter_map(move |program| match program.program {
-                        LoadedProgramType::LegacyV0(_) | LoadedProgramType::LegacyV1(_)
-                            if include_program_runtime_v1 =>
-                        {
-                            Some((*id, program.clone()))
-                        }
-                        LoadedProgramType::Typed(_) if include_program_runtime_v2 => {
-                            Some((*id, program.clone()))
-                        }
-                        #[cfg(test)]
-                        LoadedProgramType::TestLoaded(_) => Some((*id, program.clone())),
-                        _ => None,
-                    })
-            })
-            .collect()
-    }
-
-    /// Unloads programs which were used infrequently
-    pub fn sort_and_unload(&mut self, shrink_to: PercentageInteger) {
-        let mut sorted_candidates = self.get_flattened_entries(true, true);
-        sorted_candidates
-            .sort_by_cached_key(|(_id, program)| program.tx_usage_counter.load(Ordering::Relaxed));
-        let num_to_unload = sorted_candidates
-            .len()
-            .saturating_sub(shrink_to.apply_to(MAX_LOADED_ENTRY_COUNT));
-        self.unload_program_entries(sorted_candidates.iter().take(num_to_unload));
-    }
-
-    /// Evicts programs using 2's random selection, choosing the least used program out of the two entries.
-    /// The eviction is performed enough number of times to reduce the cache usage to the given percentage.
-    pub fn evict_using_2s_random_selection(&mut self, shrink_to: PercentageInteger, now: Slot) {
-        let mut candidates = self.get_flattened_entries(true, true);
-        let num_to_unload = candidates
-            .len()
-            .saturating_sub(shrink_to.apply_to(MAX_LOADED_ENTRY_COUNT));
-        fn random_index_and_usage_counter(
-            candidates: &[(Pubkey, Arc<LoadedProgram>)],
-            now: Slot,
-        ) -> (usize, u64) {
-            let mut rng = thread_rng();
-            let index = rng.gen_range(0..candidates.len());
-            let usage_counter = candidates
-                .get(index)
-                .expect("Failed to get cached entry")
-                .1
-                .decayed_usage_counter(now);
-            (index, usage_counter)
-        }
-
-        for _ in 0..num_to_unload {
-            let (index1, usage_counter1) = random_index_and_usage_counter(&candidates, now);
-            let (index2, usage_counter2) = random_index_and_usage_counter(&candidates, now);
-
-            let (program, entry) = if usage_counter1 < usage_counter2 {
-                candidates.swap_remove(index1)
-            } else {
-                candidates.swap_remove(index2)
-            };
-            self.unload_program_entry(&program, &entry);
-        }
-    }
-
-    /// Removes all the entries at the given keys, if they exist
     pub fn remove_programs(&mut self, keys: impl Iterator<Item = Pubkey>) {
         for k in keys {
             self.entries.remove(&k);
         }
-    }
-
-    /// Returns the `slot_versions` of the second level for the given program id.
-    pub fn get_slot_versions_for_tests(&self, key: &Pubkey) -> &[Arc<LoadedProgram>] {
-        self.entries
-            .get(key)
-            .map(|second_level| second_level.slot_versions.as_ref())
-            .unwrap_or(&[])
-    }
-
-    /// This function removes the given entry for the given program from the cache.
-    /// The function expects that the program and entry exists in the cache. Otherwise it'll panic.
-    fn unload_program_entry(&mut self, program: &Pubkey, remove_entry: &Arc<LoadedProgram>) {
-        let second_level = self.entries.get_mut(program).expect("Cache lookup failed");
-        let candidate = second_level
-            .slot_versions
-            .iter_mut()
-            .find(|entry| entry == &remove_entry)
-            .expect("Program entry not found");
-
-        // Certain entry types cannot be unloaded, such as tombstones, or already unloaded entries.
-        // For such entries, `to_unloaded()` will return None.
-        // These entry types do not occupy much memory.
-        if let Some(unloaded) = candidate.to_unloaded() {
-            if candidate.tx_usage_counter.load(Ordering::Relaxed) == 1 {
-                self.stats.one_hit_wonders.fetch_add(1, Ordering::Relaxed);
-            }
-            self.stats
-                .evictions
-                .entry(*program)
-                .and_modify(|c| saturating_add_assign!(*c, 1))
-                .or_insert(1);
-            *candidate = Arc::new(unloaded);
-        }
-    }
-
-    fn unload_program_entries<'a>(
-        &mut self,
-        remove: impl Iterator<Item = &'a (Pubkey, Arc<LoadedProgram>)>,
-    ) {
-        for (program, entry) in remove {
-            self.unload_program_entry(program, entry);
-        }
-    }
-
-    fn remove_programs_with_no_entries(&mut self) {
-        let num_programs_before_removal = self.entries.len();
-        self.entries.retain(|_, second_level| {
-            !second_level.slot_versions.is_empty()
-                || second_level.cooperative_loading_lock.is_some()
-        });
-        if self.entries.len() < num_programs_before_removal {
-            self.stats.empty_entries.fetch_add(
-                num_programs_before_removal.saturating_sub(self.entries.len()) as u64,
-                Ordering::Relaxed,
-            );
-        }
-    }
-}
-
-#[cfg(RUSTC_WITH_SPECIALIZATION)]
-impl solana_frozen_abi::abi_example::AbiExample for LoadedProgram {
-    fn example() -> Self {
-        // LoadedProgram isn't serializable by definition.
-        Self::default()
-    }
-}
-
-#[cfg(RUSTC_WITH_SPECIALIZATION)]
-impl<FG: ForkGraph> solana_frozen_abi::abi_example::AbiExample for ProgramCache<FG> {
-    fn example() -> Self {
-        // ProgramCache isn't serializable by definition.
-        Self::new(Slot::default(), Epoch::default())
     }
 }

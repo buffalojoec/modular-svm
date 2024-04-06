@@ -102,7 +102,6 @@ pub trait TransactionProcessingCallback {
     }
 }
 
-#[derive(AbiExample)]
 pub struct TransactionBatchProcessor<FG: ForkGraph> {
     /// Bank slot (i.e. block)
     slot: Slot,
