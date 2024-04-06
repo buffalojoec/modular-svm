@@ -1,0 +1,48 @@
+[workspace]
+members = [
+    "program-runtime",
+    "svm",
+]
+
+exclude = ["svm/tests/example-programs"]
+
+resolver = "2"
+
+[workspace.package]
+version = "2.0.0"
+authors = ["Solana Labs Maintainers <maintainers@solanalabs.com>"]
+repository = "https://github.com/solana-labs/solana"
+homepage = "https://solanalabs.com/"
+license = "Apache-2.0"
+edition = "2021"
+
+[workspace.dependencies]
+assert_matches = "1.5.0"
+base64 = "0.22.0"
+bincode = "1.3.3"
+eager = "0.1.0"
+enum-iterator = "1.5.0"
+itertools = "0.10.5"
+libc = "0.2.153"
+libsecp256k1 = "0.6.0"
+log = "0.4.21"
+num-derive = "0.4"
+num-traits = "0.2"
+percentage = "0.1.0"
+rand = "0.8.5"
+rustc_version = "0.4"
+serde = "1.0.197"
+solana-bpf-loader-program = { git = "https://github.com/anza-xyz/agave" }
+solana-frozen-abi = { git = "https://github.com/anza-xyz/agave" }
+solana-frozen-abi-macro = { git = "https://github.com/anza-xyz/agave" }
+solana-loader-v4-program = { git = "https://github.com/anza-xyz/agave" }
+solana-logger = { git = "https://github.com/anza-xyz/agave" }
+solana-measure = { git = "https://github.com/anza-xyz/agave" }
+solana-metrics = { git = "https://github.com/anza-xyz/agave" }
+solana-program-runtime = { git = "https://github.com/anza-xyz/agave" }
+solana-sdk = { git = "https://github.com/anza-xyz/agave" }
+solana-svm = { path = "svm", version = "=2.0.0" }
+solana-system-program = { git = "https://github.com/anza-xyz/agave" }
+solana_rbpf = "=0.8.0"
+test-case = "3.3.1"
+thiserror = "1.0.58"
