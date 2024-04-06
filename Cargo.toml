@@ -2,6 +2,7 @@
 members = [
     "bin/program-runtime",
     "bin/svm",
+    "solana/svm",
 ]
 
 exclude = ["svm/tests/example-programs"]

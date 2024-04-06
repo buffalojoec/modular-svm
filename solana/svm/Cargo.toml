@@ -1,0 +1,23 @@
+[package]
+name = "solana-svm"
+description = "Solana SVM"
+documentation = "https://docs.rs/solana-svm"
+version = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+solana-sdk = { workspace = true }
+
+[features]
+test-harness = []
+
+[lib]
+crate-type = ["lib"]
+name = "solana_svm"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
