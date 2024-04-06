@@ -1,0 +1,16 @@
+[package]
+name = "agave-svm"
+description = "Agave Solana SVM Implementation"
+documentation = "https://docs.rs/agave-svm"
+version = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+agave-program-cache = { path = "../program-cache" }
+agave-sysvar-cache = { path = "../sysvar-cache" }
+solana-sdk = { workspace = true }
+solana-svm = { path = "../../solana/svm" }
