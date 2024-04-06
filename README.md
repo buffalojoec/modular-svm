@@ -75,18 +75,27 @@ runtime that makes use of an SVM. However, notice that this is all done with
 https://github.com/buffalojoec/modular-svm/blob/d52d0d34a5ce9e8fcda1153ff45934ab9721a310/solana/runtime/src/specification.rs#L10-L33
 
 Meanwhile, the Agave runtime is now an _implementation_ (`agave-runtime`), and
-it simply implements the `solana-runtime` interface by also providing an SVM
-implementation (`agave-svm`) to be compliant.
+it simply implements the `solana-runtime` interface, but **without specifying
+a specific SVM implementation**.
 
 https://github.com/buffalojoec/modular-svm/blob/d52d0d34a5ce9e8fcda1153ff45934ab9721a310/agave/runtime/src/lib.rs#L19-L52
 
-The beautiful thing here is that another SVM could easily be plugged into
-Agave's runtime implementation. Anyone could configure an Agave node, then write
-an adapter for some other SVM implementation and plug it in right here 👆.
+The beautiful thing here is that any SVM could easily be plugged into Agave's
+runtime implementation. Anyone could configure an Agave node, then write an
+adapter for some other SVM implementation and plug it in right here.
 
-Note also the decoupling and modularization of the type crates, some of which
-are specification-wide (`solana-compute-budget`) and some of which are
-implementation-specific (`agave-program-cache`).
+https://github.com/buffalojoec/modular-svm/blob/d52d0d34a5ce9e8fcda1153ff45934ab9721a310/agave/validator/src/lib.rs#L19-L52
 
-Although metrics are not demonstrated here (yet), the idea is that they would
-reside in one's implementation, and be vended back up to the callers.
+🔑 🔑 A huge advantage with this arrangement is the fact that consensus-breaking
+changes would reside in the specification-level, guarded by SIMDs, while
+developers could more freely adjust implementation-level code and ship new
+versions without worrying about partitioning the network.
+
+Other important notes:
+
+- This demo uses lightweight "leaf node" crates for types
+  (ie. `solana-compute-budget`).
+- Some leaf node crates are specification-wide (ie. `solana-compute-budget`)
+  while others are implementation-specific (ie. `agave-program-cache`).
+- Although metrics are not demonstrated here (yet), the idea is that they would
+  reside in one's implementation, and be vended back up to the callers.

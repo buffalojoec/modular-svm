@@ -1,6 +1,6 @@
 [package]
-name = "agave-program-cache"
-description = "Agave Program Cache"
+name = "agave-validator"
+description = "Agave Validator"
 version = { workspace = true }
 authors = { workspace = true }
 repository = { workspace = true }
@@ -9,4 +9,8 @@ license = { workspace = true }
 edition = { workspace = true }
 
 [dependencies]
+agave-program-cache = { path = "../program-cache" }
+agave-runtime = { path = "../runtime" }
+agave-svm = { path = "../svm" }
+solana-svm = { path = "../../solana/svm" }
 solana-sdk = { workspace = true }

@@ -1,33 +1,24 @@
 //! Agave Validator Runtime Implementation.
 
-mod callbacks;
+mod batch;
 
 use {
-    crate::callbacks::AgaveValidatorRuntimeTransactionProcessingCallback,
-    agave_program_cache::ForkGraph,
-    agave_svm::AgaveTransactionBatchProcessor,
-    solana_runtime::specification::{
-        LoadAndExecuteTransactionsOutput, TransactionBatch, ValidatorRuntime,
-    },
-    solana_sdk::transaction::{self, SanitizedTransaction},
-    std::borrow::Cow,
+    crate::batch::AgaveTransactionBatch,
+    solana_runtime::specification::{LoadAndExecuteTransactionsOutput, ValidatorRuntime},
+    solana_svm::specification::TransactionBatchProcessor,
 };
 
-type AgaveTransactionBatchProcessorWithCallback<FG> =
-    AgaveTransactionBatchProcessor<AgaveValidatorRuntimeTransactionProcessingCallback, FG>;
-
 /// The Agave Validator Runtime.
-pub struct AgaveValidatorRuntime<FG: ForkGraph> {
-    pub batch_processor: AgaveTransactionBatchProcessorWithCallback<FG>,
+pub struct AgaveValidatorRuntime<BP: TransactionBatchProcessor> {
+    /// SVM-agnostic batch processor.
+    pub batch_processor: BP,
 }
 
-/// Agave Validator Runtime Implementation.
-impl<'a, FG: ForkGraph>
-    ValidatorRuntime<AgaveTransactionBatch<'a>, AgaveTransactionBatchProcessorWithCallback<FG>>
-    for AgaveValidatorRuntime<FG>
+/// Agave Validator Runtime Base Implementation.
+impl<'a, BP: TransactionBatchProcessor> ValidatorRuntime<AgaveTransactionBatch<'a>, BP>
+    for AgaveValidatorRuntime<BP>
 {
-    /// Get the batch processor.
-    fn batch_processor(&self) -> &AgaveTransactionBatchProcessorWithCallback<FG> {
+    fn batch_processor(&self) -> &BP {
         &self.batch_processor
     }
 
@@ -39,6 +30,8 @@ impl<'a, FG: ForkGraph>
         /*
          * MOCK.
          */
+        let _batch_processor = self.batch_processor();
+        //
         LoadAndExecuteTransactionsOutput {
             loaded_transactions: vec![],
             execution_results: vec![],
@@ -48,18 +41,5 @@ impl<'a, FG: ForkGraph>
             executed_with_successful_result_count: 0,
             signature_count: 0,
         }
-    }
-}
-
-/// A transaction batch, as defined by the Agave Validator Runtime.
-pub struct AgaveTransactionBatch<'a> {
-    pub lock_results: Vec<transaction::Result<()>>,
-    pub sanitized_txs: Cow<'a, [SanitizedTransaction]>,
-    pub needs_unlock: bool,
-}
-
-impl TransactionBatch for AgaveTransactionBatch<'_> {
-    fn sanitized_txs(&self) -> &[SanitizedTransaction] {
-        &self.sanitized_txs
     }
 }

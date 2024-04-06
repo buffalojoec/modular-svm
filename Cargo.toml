@@ -4,12 +4,11 @@ members = [
     "agave/program-cache",
     "agave/svm",
     "agave/sysvar-cache",
+    "agave/validator",
     "solana/compute-budget",
     "solana/runtime",
     "solana/svm",
 ]
-
-exclude = ["svm/tests/example-programs"]
 
 resolver = "2"
 
@@ -22,22 +21,4 @@ license = "Apache-2.0"
 edition = "2021"
 
 [workspace.dependencies]
-assert_matches = "1.5.0"
-base64 = "0.22.0"
-bincode = "1.3.3"
-eager = "0.1.0"
-enum-iterator = "1.5.0"
-itertools = "0.10.5"
-libc = "0.2.153"
-libsecp256k1 = "0.6.0"
-log = "0.4.21"
-num-derive = "0.4"
-num-traits = "0.2"
-percentage = "0.1.0"
-rand = "0.8.5"
-rustc_version = "0.4"
-serde = "1.0.197"
 solana-sdk = { git = "https://github.com/anza-xyz/agave" }
-solana_rbpf = "=0.8.0"
-test-case = "3.3.1"
-thiserror = "1.0.58"

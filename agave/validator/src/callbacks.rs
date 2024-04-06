@@ -7,7 +7,7 @@ use {
     std::sync::Arc,
 };
 
-/// Simply a mock callback implementation for Agave Validator Runtime.
+/// Simply a mock runtime callback implementation for the Agave Validator.
 pub struct AgaveValidatorRuntimeTransactionProcessingCallback;
 
 impl TransactionProcessingCallback for AgaveValidatorRuntimeTransactionProcessingCallback {
