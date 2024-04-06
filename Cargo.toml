@@ -3,8 +3,7 @@ members = [
     "agave/program-cache",
     "agave/svm",
     "agave/sysvar-cache",
-    "bin/program-runtime",
-    "bin/svm",
+    "solana/compute-budget",
     "solana/svm",
 ]
 
@@ -36,14 +35,7 @@ percentage = "0.1.0"
 rand = "0.8.5"
 rustc_version = "0.4"
 serde = "1.0.197"
-solana-bpf-loader-program = { git = "https://github.com/anza-xyz/agave" }
-solana-loader-v4-program = { git = "https://github.com/anza-xyz/agave" }
-solana-logger = { git = "https://github.com/anza-xyz/agave" }
-solana-measure = { git = "https://github.com/anza-xyz/agave" }
-solana-metrics = { git = "https://github.com/anza-xyz/agave" }
-solana-program-runtime = { git = "https://github.com/anza-xyz/agave" }
 solana-sdk = { git = "https://github.com/anza-xyz/agave" }
-solana-system-program = { git = "https://github.com/anza-xyz/agave" }
 solana_rbpf = "=0.8.0"
 test-case = "3.3.1"
 thiserror = "1.0.58"

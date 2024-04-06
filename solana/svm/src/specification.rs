@@ -2,7 +2,7 @@
 
 use solana_sdk::{
     inner_instruction::InnerInstructionsList,
-    nonce_info::NonceFull,
+    nonce_info::{NonceFull, NonceInfo},
     rent_debits::RentDebits,
     transaction::{self, SanitizedTransaction, TransactionError},
     transaction_context::{IndexOfAccount, TransactionAccount, TransactionReturnData},
@@ -54,4 +54,13 @@ pub struct TransactionExecutionDetails {
 pub enum DurableNonceFee {
     Valid(u64),
     Invalid,
+}
+
+impl From<&NonceFull> for DurableNonceFee {
+    fn from(nonce: &NonceFull) -> Self {
+        match nonce.lamports_per_signature() {
+            Some(lamports_per_signature) => Self::Valid(lamports_per_signature),
+            None => Self::Invalid,
+        }
+    }
 }

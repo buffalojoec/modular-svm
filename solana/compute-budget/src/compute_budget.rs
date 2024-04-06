@@ -1,6 +1,7 @@
-use crate::compute_budget_processor;
-
-pub const DEFAULT_HEAP_COST: u64 = 8;
+use {
+    crate::compute_budget_processor,
+    solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey, transaction},
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ComputeBudget {
@@ -89,7 +90,7 @@ impl ComputeBudget {
             curve25519_ristretto_msm_base_cost: 2303,
             curve25519_ristretto_msm_incremental_cost: 788,
             heap_size: u32::try_from(solana_sdk::entrypoint::HEAP_LENGTH).unwrap(),
-            heap_cost: DEFAULT_HEAP_COST,
+            heap_cost: compute_budget_processor::DEFAULT_HEAP_COST,
             mem_op_base_cost: 10,
             alt_bn128_addition_cost: 334,
             alt_bn128_multiplication_cost: 3_840,
@@ -104,5 +105,17 @@ impl ComputeBudget {
             alt_bn128_g2_compress: 86,
             alt_bn128_g2_decompress: 13610,
         }
+    }
+
+    pub fn try_from_instructions<'a>(
+        instructions: impl Iterator<Item = (&'a Pubkey, &'a CompiledInstruction)>,
+    ) -> transaction::Result<Self> {
+        let compute_budget_limits =
+            compute_budget_processor::process_compute_budget_instructions(instructions)?;
+        Ok(ComputeBudget {
+            compute_unit_limit: u64::from(compute_budget_limits.compute_unit_limit),
+            heap_size: compute_budget_limits.updated_heap_bytes,
+            ..ComputeBudget::default()
+        })
     }
 }
