@@ -6,27 +6,13 @@ use {
         timings::{ExecuteDetailsTimings, ExecuteTimings},
     },
     solana_sdk::{
-        account::WritableAccount,
-        message::SanitizedMessage,
-        precompiles::is_precompile,
-        saturating_add_assign,
-        sysvar::instructions,
-        transaction::TransactionError,
-        transaction_context::{IndexOfAccount, InstructionAccount},
+        message::SanitizedMessage, precompiles::is_precompile, saturating_add_assign,
+        transaction::TransactionError, transaction_context::IndexOfAccount,
     },
 };
 
 #[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct MessageProcessor {}
-
-#[cfg(RUSTC_WITH_SPECIALIZATION)]
-impl ::solana_frozen_abi::abi_example::AbiExample for MessageProcessor {
-    fn example() -> Self {
-        // MessageProcessor's fields are #[serde(skip)]-ed and not Serialize
-        // so, just rely on Default anyway.
-        MessageProcessor::default()
-    }
-}
 
 impl MessageProcessor {
     /// Process a message.
@@ -41,53 +27,18 @@ impl MessageProcessor {
         timings: &mut ExecuteTimings,
         accumulated_consumed_units: &mut u64,
     ) -> Result<(), TransactionError> {
-        debug_assert_eq!(program_indices.len(), message.instructions().len());
+        /*
+         * Function simplified for brevity.
+         */
         for (instruction_index, ((program_id, instruction), program_indices)) in message
             .program_instructions_iter()
             .zip(program_indices.iter())
             .enumerate()
         {
+            let instruction_accounts = Vec::with_capacity(instruction.accounts.len());
+
             let is_precompile =
                 is_precompile(program_id, |id| invoke_context.feature_set.is_active(id));
-
-            // Fixup the special instructions key if present
-            // before the account pre-values are taken care of
-            if let Some(account_index) = invoke_context
-                .transaction_context
-                .find_index_of_account(&instructions::id())
-            {
-                let mut mut_account_ref = invoke_context
-                    .transaction_context
-                    .get_account_at_index(account_index)
-                    .map_err(|_| TransactionError::InvalidAccountIndex)?
-                    .borrow_mut();
-                instructions::store_current_index(
-                    mut_account_ref.data_as_mut_slice(),
-                    instruction_index as u16,
-                );
-            }
-
-            let mut instruction_accounts = Vec::with_capacity(instruction.accounts.len());
-            for (instruction_account_index, index_in_transaction) in
-                instruction.accounts.iter().enumerate()
-            {
-                let index_in_callee = instruction
-                    .accounts
-                    .get(0..instruction_account_index)
-                    .ok_or(TransactionError::InvalidAccountIndex)?
-                    .iter()
-                    .position(|account_index| account_index == index_in_transaction)
-                    .unwrap_or(instruction_account_index)
-                    as IndexOfAccount;
-                let index_in_transaction = *index_in_transaction as usize;
-                instruction_accounts.push(InstructionAccount {
-                    index_in_transaction: index_in_transaction as IndexOfAccount,
-                    index_in_caller: index_in_transaction as IndexOfAccount,
-                    index_in_callee,
-                    is_signer: message.is_signer(index_in_transaction),
-                    is_writable: message.is_writable(index_in_transaction),
-                });
-            }
 
             let result = if is_precompile {
                 invoke_context

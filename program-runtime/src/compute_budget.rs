@@ -3,14 +3,6 @@ use {
     solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey, transaction::Result},
 };
 
-#[cfg(RUSTC_WITH_SPECIALIZATION)]
-impl ::solana_frozen_abi::abi_example::AbiExample for ComputeBudget {
-    fn example() -> Self {
-        // ComputeBudget is not Serialize so just rely on Default.
-        ComputeBudget::default()
-    }
-}
-
 /// Roughly 0.5us/page, where page is 32K; given roughly 15CU/us, the
 /// default heap page cost = 0.5 * 15 ~= 8CU/page
 pub const DEFAULT_HEAP_COST: u64 = 8;
