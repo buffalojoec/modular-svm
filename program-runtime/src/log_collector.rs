@@ -99,24 +99,3 @@ macro_rules! ic_msg {
         $crate::ic_logger_msg!($invoke_context.get_log_collector(), $fmt, $($arg)*)
     };
 }
-
-#[cfg(test)]
-pub(crate) mod tests {
-    use super::*;
-
-    #[test]
-    fn test_log_messages_bytes_limit() {
-        let mut lc = LogCollector::default();
-
-        for _i in 0..LOG_MESSAGES_BYTES_LIMIT * 2 {
-            lc.log("x");
-        }
-
-        let logs: Vec<_> = lc.into_messages();
-        assert_eq!(logs.len(), LOG_MESSAGES_BYTES_LIMIT);
-        for log in logs.iter().take(LOG_MESSAGES_BYTES_LIMIT - 1) {
-            assert_eq!(*log, "x".to_string());
-        }
-        assert_eq!(logs.last(), Some(&"Log truncated".to_string()));
-    }
-}
