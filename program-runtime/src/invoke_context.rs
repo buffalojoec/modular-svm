@@ -38,8 +38,6 @@ impl<'a> ContextObject for InvokeContext<'a> {
     }
 
     fn consume(&mut self, amount: u64) {
-        // 1 to 1 instruction to compute unit mapping
-        // ignore overflow, Ebpf will bail if exceeded
         let mut compute_meter = self.compute_meter.borrow_mut();
         *compute_meter = compute_meter.saturating_sub(amount);
     }
@@ -149,8 +147,6 @@ impl<'a> InvokeContext<'a> {
     }
 
     pub fn find_program_in_cache(&self, pubkey: &Pubkey) -> Option<Arc<LoadedProgram>> {
-        // First lookup the cache of the programs modified by the current transaction. If not found, lookup
-        // the cache of the cache of the programs that are loaded for the transaction batch.
         self.programs_modified_by_tx
             .find(pubkey)
             .or_else(|| self.programs_loaded_for_tx_batch.find(pubkey))
@@ -168,7 +164,6 @@ impl<'a> InvokeContext<'a> {
             .get_environments_for_epoch(0))
     }
 
-    /// Push a stack frame onto the invocation stack
     pub fn push(&mut self) -> Result<(), InstructionError> {
         /*
          * Function simplified for brevity.
@@ -176,7 +171,6 @@ impl<'a> InvokeContext<'a> {
         Ok(())
     }
 
-    /// Pop a stack frame from the invocation stack
     pub fn pop(&mut self) -> Result<(), InstructionError> {
         /*
          * Function simplified for brevity.
@@ -184,14 +178,11 @@ impl<'a> InvokeContext<'a> {
         Ok(())
     }
 
-    /// Current height of the invocation stack, top level instructions are height
-    /// `solana_sdk::instruction::TRANSACTION_LEVEL_STACK_HEIGHT`
     pub fn get_stack_height(&self) -> usize {
         self.transaction_context
             .get_instruction_context_stack_height()
     }
 
-    /// Processes an instruction and returns how many compute units were used
     pub fn process_instruction(
         &mut self,
         instruction_data: &[u8],
@@ -206,12 +197,9 @@ impl<'a> InvokeContext<'a> {
             .configure(program_indices, instruction_accounts, instruction_data);
         self.push()?;
         self.process_executable_chain(compute_units_consumed, timings)
-            // MUST pop if and only if `push` succeeded, independent of `result`.
-            // Thus, the `.and()` instead of an `.and_then()`.
             .and(self.pop())
     }
 
-    /// Calls the instruction's program entrypoint method
     fn process_executable_chain(
         &mut self,
         _compute_units_consumed: &mut u64,

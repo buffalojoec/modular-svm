@@ -20,16 +20,6 @@ pub struct TransactionResults {
     pub rent_debits: Vec<RentDebits>,
 }
 
-/// Type safe representation of a transaction execution attempt which
-/// differentiates between a transaction that was executed (will be
-/// committed to the ledger) and a transaction which wasn't executed
-/// and will be dropped.
-///
-/// Note: `Result<TransactionExecutionDetails, TransactionError>` is not
-/// used because it's easy to forget that the inner `details.status` field
-/// is what should be checked to detect a successful transaction. This
-/// enum provides a convenience method `Self::was_executed_successfully` to
-/// make such checks hard to do incorrectly.
 #[derive(Debug, Clone)]
 pub enum TransactionExecutionResult {
     Executed {
@@ -77,8 +67,6 @@ pub struct TransactionExecutionDetails {
     pub durable_nonce_fee: Option<DurableNonceFee>,
     pub return_data: Option<TransactionReturnData>,
     pub executed_units: u64,
-    /// The change in accounts data len for this transaction.
-    /// NOTE: This value is valid IFF `status` is `Ok`.
     pub accounts_data_len_delta: i64,
 }
 

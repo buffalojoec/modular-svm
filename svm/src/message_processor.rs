@@ -13,11 +13,6 @@ use {
 pub struct MessageProcessor {}
 
 impl MessageProcessor {
-    /// Process a message.
-    /// This method calls each instruction in the message over the set of loaded accounts.
-    /// For each instruction it calls the program entrypoint method and verifies that the result of
-    /// the call does not violate the bank's accounting rules.
-    /// The accounts are committed back to the bank only if every instruction succeeds.
     pub fn process_message(
         message: &SanitizedMessage,
         program_indices: &[Vec<IndexOfAccount>],

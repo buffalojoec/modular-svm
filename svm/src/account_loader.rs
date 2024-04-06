@@ -17,7 +17,6 @@ use {
     std::collections::HashMap,
 };
 
-// for the load instructions
 pub(crate) type TransactionRent = u64;
 pub(crate) type TransactionProgramIndices = Vec<Vec<IndexOfAccount>>;
 pub type TransactionCheckResult = (transaction::Result<()>, Option<NoncePartial>, Option<u64>);
@@ -31,11 +30,6 @@ pub struct LoadedTransaction {
     pub rent_debits: RentDebits,
 }
 
-/// Check whether the payer_account is capable of paying the fee. The
-/// side effect is to subtract the fee amount from the payer_account
-/// balance of lamports. If the payer_acount is not able to pay the
-/// fee, the error_counters is incremented, and a specific error is
-/// returned.
 pub fn validate_fee_payer(
     _payer_address: &Pubkey,
     _payer_account: &mut AccountSharedData,
@@ -50,11 +44,6 @@ pub fn validate_fee_payer(
     Ok(())
 }
 
-/// Collect information about accounts used in txs transactions and
-/// return vector of tuples, one for each transaction in the
-/// batch. Each tuple contains struct of information about accounts as
-/// its first element and an optional transaction nonce info as its
-/// second element.
 pub(crate) fn load_accounts<CB: TransactionProcessingCallback>(
     _callbacks: &CB,
     _txs: &[SanitizedTransaction],

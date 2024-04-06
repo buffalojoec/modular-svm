@@ -60,7 +60,6 @@ impl LogCollector {
     }
 }
 
-/// Convenience macro to log a message with an `Option<Rc<RefCell<LogCollector>>>`
 #[macro_export]
 macro_rules! ic_logger_msg {
     ($log_collector:expr, $message:expr) => {
@@ -89,7 +88,6 @@ macro_rules! ic_logger_msg {
     };
 }
 
-/// Convenience macro to log a message with an `InvokeContext`
 #[macro_export]
 macro_rules! ic_msg {
     ($invoke_context:expr, $message:expr) => {

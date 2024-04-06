@@ -14,7 +14,6 @@ pub struct ProgramTiming {
     pub accumulated_units: u64,
     pub count: u32,
     pub errored_txs_compute_consumed: Vec<u64>,
-    // Sum of all units in `errored_txs_compute_consumed`
     pub total_errored_units: u64,
 }
 
@@ -32,14 +31,12 @@ impl ProgramTiming {
         saturating_add_assign!(self.accumulated_us, other.accumulated_us);
         saturating_add_assign!(self.accumulated_units, other.accumulated_units);
         saturating_add_assign!(self.count, other.count);
-        // Clones the entire vector, maybe not great...
         self.errored_txs_compute_consumed
             .extend(other.errored_txs_compute_consumed.clone());
         saturating_add_assign!(self.total_errored_units, other.total_errored_units);
     }
 }
 
-/// Used as an index for `Metrics`.
 #[derive(Debug, Sequence)]
 pub enum ExecuteTimingType {
     CheckUs,
@@ -81,9 +78,6 @@ impl core::fmt::Debug for Metrics {
     }
 }
 
-// The auxiliary variable that must always be provided to eager_macro_rules! must use the
-// identifier `eager_1`. Macros declared with `eager_macro_rules!` can then be used inside
-// an eager! block.
 eager_macro_rules! { $eager_1
     #[macro_export]
     macro_rules! report_execute_timings {
@@ -300,8 +294,6 @@ impl ThreadExecuteTimings {
                 ("slot", slot as i64, i64),
                 ("total_thread_us", self.total_thread_us as i64, i64),
                 ("total_transactions_executed", self.total_transactions_executed as i64, i64),
-                // Everything inside the `eager!` block will be eagerly expanded before
-                // evaluation of the rest of the surrounding macro.
                 eager!{report_execute_timings!(self.execute_timings)}
             );
         };

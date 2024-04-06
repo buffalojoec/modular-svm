@@ -32,57 +32,35 @@ pub type ProgramRuntimeEnvironment = Arc<BuiltinProgram<InvokeContext<'static>>>
 pub const MAX_LOADED_ENTRY_COUNT: usize = 256;
 pub const DELAY_VISIBILITY_SLOT_OFFSET: Slot = 1;
 
-/// Relationship between two fork IDs
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BlockRelation {
-    /// The slot is on the same fork and is an ancestor of the other slot
     Ancestor,
-    /// The two slots are equal and are on the same fork
     Equal,
-    /// The slot is on the same fork and is a descendant of the other slot
     Descendant,
-    /// The slots are on two different forks and may have had a common ancestor at some point
     Unrelated,
-    /// Either one or both of the slots are either older than the latest root, or are in future
     Unknown,
 }
 
-/// Maps relationship between two slots.
 pub trait ForkGraph {
-    /// Returns the BlockRelation of A to B
     fn relationship(&self, a: Slot, b: Slot) -> BlockRelation;
 
-    /// Returns the epoch of the given slot
     fn slot_epoch(&self, _slot: Slot) -> Option<Epoch> {
         Some(0)
     }
 }
 
-/// Actual payload of [LoadedProgram].
 #[derive(Default)]
 pub enum LoadedProgramType {
-    /// Tombstone for programs which currently do not pass the verifier but could if the feature set changed.
     FailedVerification(ProgramRuntimeEnvironment),
-    /// Tombstone for programs that were either explicitly closed or never deployed.
-    ///
-    /// It's also used for accounts belonging to program loaders, that don't actually contain program code (e.g. buffer accounts for LoaderV3 programs).
     #[default]
     Closed,
-    /// Tombstone for programs which have recently been modified but the new version is not visible yet.
     DelayVisibility,
-    /// Successfully verified but not currently compiled.
-    ///
-    /// It continues to track usage statistics even when the compiled executable of the program is evicted from memory.
     Unloaded(ProgramRuntimeEnvironment),
-    /// Verified and compiled program of loader-v1 or loader-v2
     LegacyV0(Executable<InvokeContext<'static>>),
-    /// Verified and compiled program of loader-v3 (aka upgradable loader)
     LegacyV1(Executable<InvokeContext<'static>>),
-    /// Verified and compiled program of loader-v4
     Typed(Executable<InvokeContext<'static>>),
     #[cfg(test)]
     TestLoaded(ProgramRuntimeEnvironment),
-    /// A built-in program which is not stored on-chain but backed into and distributed with the validator
     Builtin(BuiltinProgram<InvokeContext<'static>>),
 }
 
@@ -106,7 +84,6 @@ impl Debug for LoadedProgramType {
 }
 
 impl LoadedProgramType {
-    /// Returns a reference to its environment if it has one
     pub fn get_environment(&self) -> Option<&ProgramRuntimeEnvironment> {
         match self {
             LoadedProgramType::LegacyV0(program)
@@ -122,56 +99,33 @@ impl LoadedProgramType {
     }
 }
 
-/// Holds a program version at a specific address and on a specific slot / fork.
-///
-/// It contains the actual program in [LoadedProgramType] and a bunch of meta-data.
 #[derive(Debug, Default)]
 pub struct LoadedProgram {
-    /// The program of this entry
     pub program: LoadedProgramType,
-    /// Size of account that stores the program and program data
     pub account_size: usize,
-    /// Slot in which the program was (re)deployed
     pub deployment_slot: Slot,
-    /// Slot in which this entry will become active (can be in the future)
     pub effective_slot: Slot,
-    /// How often this entry was used by a transaction
     pub tx_usage_counter: AtomicU64,
-    /// How often this entry was used by an instruction
     pub ix_usage_counter: AtomicU64,
-    /// Latest slot in which the entry was used
     pub latest_access_slot: AtomicU64,
 }
 
-/// Global cache statistics for [ProgramCache].
 #[derive(Debug, Default)]
 pub struct Stats {
-    /// a program was already in the cache
     pub hits: AtomicU64,
-    /// a program was not found and loaded instead
     pub misses: AtomicU64,
-    /// a compiled executable was unloaded
     pub evictions: HashMap<Pubkey, u64>,
-    /// an unloaded program was loaded again (opposite of eviction)
     pub reloads: AtomicU64,
-    /// a program was loaded or un/re/deployed
     pub insertions: AtomicU64,
-    /// a program was loaded but can not be extracted on its own fork anymore
     pub lost_insertions: AtomicU64,
-    /// a program which was already in the cache was reloaded by mistake
     pub replacements: AtomicU64,
-    /// a program was only used once before being unloaded
     pub one_hit_wonders: AtomicU64,
-    /// a program became unreachable in the fork graph because of rerooting
     pub prunes_orphan: AtomicU64,
-    /// a program got pruned because it was not recompiled for the next epoch
     pub prunes_environment: AtomicU64,
-    /// the [SecondLevel] was empty because all slot versions got pruned
     pub empty_entries: AtomicU64,
 }
 
 impl Stats {
-    /// Logs the measurement values
     pub fn submit(&self, slot: Slot) {
         let hits = self.hits.load(Ordering::Relaxed);
         let misses = self.misses.load(Ordering::Relaxed);
@@ -228,18 +182,12 @@ impl Stats {
     }
 }
 
-/// Time measurements for loading a single [LoadedProgram].
 #[derive(Debug, Default)]
 pub struct LoadProgramMetrics {
-    /// Program address, but as text
     pub program_id: String,
-    /// Microseconds it took to `create_program_runtime_environment`
     pub register_syscalls_us: u64,
-    /// Microseconds it took to `Executable::<InvokeContext>::load`
     pub load_elf_us: u64,
-    /// Microseconds it took to `executable.verify::<RequisiteVerifier>`
     pub verify_code_us: u64,
-    /// Microseconds it took to `executable.jit_compile`
     pub jit_compile_us: u64,
 }
 
@@ -272,7 +220,6 @@ impl PartialEq for LoadedProgram {
 }
 
 impl LoadedProgram {
-    /// Creates a new user program
     pub fn new(
         loader_key: &Pubkey,
         program_runtime_environment: ProgramRuntimeEnvironment,
@@ -294,14 +241,6 @@ impl LoadedProgram {
         )
     }
 
-    /// Reloads a user program, *without* running the verifier.
-    ///
-    /// # Safety
-    ///
-    /// This method is unsafe since it assumes that the program has already been verified. Should
-    /// only be called when the program was previously verified and loaded in the cache, but was
-    /// unloaded due to inactivity. It should also be checked that the `program_runtime_environment`
-    /// hasn't changed since it was unloaded.
     pub unsafe fn reload(
         loader_key: &Pubkey,
         program_runtime_environment: Arc<BuiltinProgram<InvokeContext<'static>>>,
@@ -334,8 +273,7 @@ impl LoadedProgram {
         reloading: bool,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let load_elf_time = Measure::start("load_elf_time");
-        // The following unused_mut exception is needed for architectures that do not
-        // support JIT compilation.
+
         #[allow(unused_mut)]
         let mut executable = Executable::load(elf_bytes, program_runtime_environment.clone())?;
         metrics.load_elf_us = load_elf_time.end_as_us();
@@ -371,32 +309,6 @@ impl LoadedProgram {
             program,
             ix_usage_counter: AtomicU64::new(0),
             latest_access_slot: AtomicU64::new(0),
-        })
-    }
-
-    pub fn to_unloaded(&self) -> Option<Self> {
-        match &self.program {
-            LoadedProgramType::LegacyV0(_)
-            | LoadedProgramType::LegacyV1(_)
-            | LoadedProgramType::Typed(_) => {}
-            #[cfg(test)]
-            LoadedProgramType::TestLoaded(_) => {}
-            LoadedProgramType::FailedVerification(_)
-            | LoadedProgramType::Closed
-            | LoadedProgramType::DelayVisibility
-            | LoadedProgramType::Unloaded(_)
-            | LoadedProgramType::Builtin(_) => {
-                return None;
-            }
-        }
-        Some(Self {
-            program: LoadedProgramType::Unloaded(self.program.get_environment()?.clone()),
-            account_size: self.account_size,
-            deployment_slot: self.deployment_slot,
-            effective_slot: self.effective_slot,
-            tx_usage_counter: AtomicU64::new(self.tx_usage_counter.load(Ordering::Relaxed)),
-            ix_usage_counter: AtomicU64::new(self.ix_usage_counter.load(Ordering::Relaxed)),
-            latest_access_slot: AtomicU64::new(self.latest_access_slot.load(Ordering::Relaxed)),
         })
     }
 
@@ -464,14 +376,9 @@ impl LoadedProgram {
     }
 }
 
-/// Globally shared RBPF config and syscall registry
-///
-/// This is only valid in an epoch range as long as no feature affecting RBPF is activated.
 #[derive(Clone, Debug)]
 pub struct ProgramRuntimeEnvironments {
-    /// For program runtime V1
     pub program_runtime_v1: ProgramRuntimeEnvironment,
-    /// For program runtime V2
     pub program_runtime_v2: ProgramRuntimeEnvironment,
 }
 
@@ -502,7 +409,6 @@ impl LoadingTaskCookie {
     }
 }
 
-/// Suspends the thread in case no cooprative loading task was assigned
 #[derive(Debug, Default)]
 pub struct LoadingTaskWaiter {
     cookie: Mutex<LoadingTaskCookie>,
@@ -612,9 +518,6 @@ impl LoadedProgramsForTxBatch {
     pub fn find(&self, key: &Pubkey) -> Option<Arc<LoadedProgram>> {
         self.entries.get(key).map(|entry| {
             if entry.is_implicit_delay_visibility_tombstone(self.slot) {
-                // Found a program entry on the current fork, but it's not effective
-                // yet. It indicates that the program has delayed visibility. Return
-                // the tombstone to reflect that.
                 Arc::new(LoadedProgram::new_tombstone(
                     entry.deployment_slot,
                     LoadedProgramType::DelayVisibility,
@@ -627,10 +530,6 @@ impl LoadedProgramsForTxBatch {
 
     pub fn slot(&self) -> Slot {
         self.slot
-    }
-
-    pub fn set_slot_for_tests(&mut self, slot: Slot) {
-        self.slot = slot;
     }
 
     pub fn merge(&mut self, other: &Self) {

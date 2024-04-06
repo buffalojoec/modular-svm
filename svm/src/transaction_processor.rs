@@ -48,17 +48,13 @@ use {
     },
 };
 
-/// A list of log messages emitted during a transaction
 pub type TransactionLogMessages = Vec<String>;
 
 pub struct LoadAndExecuteSanitizedTransactionsOutput {
     pub loaded_transactions: Vec<TransactionLoadResult>,
-    // Vector of results indicating whether a transaction was executed or could not
-    // be executed. Note executed transactions can still have failed!
     pub execution_results: Vec<TransactionExecutionResult>,
 }
 
-/// Configuration of the recording capabilities for transaction execution
 #[derive(Copy, Clone)]
 pub struct ExecutionRecordingConfig {
     pub enable_cpi_recording: bool,
@@ -103,27 +99,12 @@ pub trait TransactionProcessingCallback {
 }
 
 pub struct TransactionBatchProcessor<FG: ForkGraph> {
-    /// Bank slot (i.e. block)
     slot: Slot,
-
-    /// Bank epoch
     epoch: Epoch,
-
-    /// initialized from genesis
     epoch_schedule: EpochSchedule,
-
-    /// Transaction fee structure
     fee_structure: FeeStructure,
-
-    /// Optional config parameters that can override runtime behavior
     runtime_config: Arc<RuntimeConfig>,
-
-    /// SysvarCache is a collection of system variables that are
-    /// accessible from on chain programs. It is passed to SVM from
-    /// client code (e.g. Bank) and forwarded to the MessageProcessor.
     pub sysvar_cache: RwLock<SysvarCache>,
-
-    /// Programs required for transaction batch processing
     pub program_cache: Arc<RwLock<ProgramCache<FG>>>,
 }
 
@@ -178,7 +159,6 @@ impl<FG: ForkGraph> TransactionBatchProcessor<FG> {
         }
     }
 
-    /// Main entrypoint to the SVM.
     #[allow(clippy::too_many_arguments)]
     pub fn load_and_execute_sanitized_transactions<'a, CB: TransactionProcessingCallback>(
         &self,
@@ -325,9 +305,6 @@ impl<FG: ForkGraph> TransactionBatchProcessor<FG> {
         }
     }
 
-    /// Returns a hash map of executable program accounts (program accounts that are not writable
-    /// in the given transactions), and their owners, for the transactions with a valid
-    /// blockhash or nonce.
     fn filter_executable_program_accounts<'a, CB: TransactionProcessingCallback>(
         _callbacks: &CB,
         _txs: &[SanitizedTransaction],
@@ -340,11 +317,6 @@ impl<FG: ForkGraph> TransactionBatchProcessor<FG> {
         HashMap::new()
     }
 
-    /// Loads the program with the given pubkey.
-    ///
-    /// If the account doesn't exist it returns `None`. If the account does exist, it must be a program
-    /// account (belong to one of the program loaders). Returns `Some(InvalidAccountData)` if the program
-    /// account is `Closed`, contains invalid data or any of the programdata accounts are invalid.
     pub fn load_program_with_pubkey<CB: TransactionProcessingCallback>(
         &self,
         _callbacks: &CB,
@@ -370,8 +342,6 @@ impl<FG: ForkGraph> TransactionBatchProcessor<FG> {
         LoadedProgramsForTxBatch::default()
     }
 
-    /// Execute a transaction using the provided loaded accounts and update
-    /// the executors cache if the transaction was successful.
     #[allow(clippy::too_many_arguments)]
     fn execute_loaded_transaction<CB: TransactionProcessingCallback>(
         &self,

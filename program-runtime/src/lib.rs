@@ -1,4 +1,3 @@
-#![cfg_attr(RUSTC_WITH_SPECIALIZATION, feature(min_specialization))]
 #![deny(clippy::arithmetic_side_effects)]
 #![deny(clippy::indexing_slicing)]
 #![recursion_limit = "2048"]

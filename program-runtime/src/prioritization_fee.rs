@@ -1,4 +1,3 @@
-/// There are 10^6 micro-lamports in one lamport
 const MICRO_LAMPORTS_PER_LAMPORT: u64 = 1_000_000;
 
 type MicroLamports = u128;

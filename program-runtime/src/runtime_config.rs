@@ -1,6 +1,5 @@
 use crate::compute_budget::ComputeBudget;
 
-/// Encapsulates flags that can be used to tweak the runtime behavior.
 #[derive(Debug, Default, Clone)]
 pub struct RuntimeConfig {
     pub compute_budget: Option<ComputeBudget>,
